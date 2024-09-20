@@ -74,8 +74,10 @@ func TestNew(t *testing.T) {
 					return fmt.Sprintf("%d times Hello %s", in.IntID, in.StringID), nil
 				}),
 			),
-			req:         httptest.NewRequest("GET", "http://example.com/7/stuff/World", nil),
-			body:        `"7 times Hello World"`,
+			req: httptest.NewRequest("GET",
+				"http://example.com/7/stuff/%2FWorld",
+				nil),
+			body:        `"7 times Hello /World"`,
 			requestCode: http.StatusOK,
 		},
 		{

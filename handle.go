@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 )
@@ -16,7 +17,11 @@ func New(opts ...Option) (http.HandlerFunc, error) {
 		}
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		path := strings.Split(strings.ToLower(r.URL.Path), "/")[1:]
+		path, err := splitPath(r.URL)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 
 		handler, ok := router.Node(r.Method).Handler(path)
 		if !ok {
@@ -57,9 +62,15 @@ func routeHandler[Input, Output any](router *router, node *node, handler func(co
 		var input Input
 		inputValue := reflect.ValueOf(&input).Elem()
 		ctx := r.Context()
+
+		path, err := splitPath(r.URL)
+		if err != nil {
+			router.HandleErr(w, err)
+			return
+		}
 		request := request{
 			Request:  r,
-			pathTail: strings.Split(r.URL.Path, "/")[1:],
+			pathTail: path,
 		}
 		for i, fieldMod := range route.fields {
 			field := inputValue.Field(i)
@@ -90,6 +101,21 @@ func routeHandler[Input, Output any](router *router, node *node, handler func(co
 	}
 	route.node.handler = httpHandler
 	return nil
+}
+
+func splitPath(link *url.URL) ([]string, error) {
+	if link.RawPath == "" {
+		return strings.Split(link.Path, "/")[1:], nil
+	}
+	path := strings.Split(link.RawPath, "/")[1:]
+	for i, p := range path {
+		s, err := url.PathUnescape(p)
+		if err != nil {
+			return nil, fmt.Errorf("url.PathUnescape: %w", err)
+		}
+		path[i] = s
+	}
+	return path, nil
 }
 
 func Post[Input, Output any](handler func(context.Context, Input) (Output, error)) Option {

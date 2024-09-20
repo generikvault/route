@@ -1,6 +1,9 @@
 package route
 
-import "net/http"
+import (
+	"net/http"
+	"strings"
+)
 
 type node struct {
 	childs         map[string]*node
@@ -13,7 +16,7 @@ func (n node) Handler(path []string) (http.Handler, bool) {
 	if len(path) == 0 {
 		return n.handler, n.handler != nil
 	}
-	first := path[0]
+	first := strings.ToLower(path[0])
 	if child, ok := n.childs[first]; ok {
 		if handler, ok := child.Handler(path[1:]); ok {
 			return handler, true
