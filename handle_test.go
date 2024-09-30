@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -134,4 +135,43 @@ func testOptions(opts ...Option) Option {
 			opts...,
 		)...,
 	)
+}
+
+func TestClosableRequestValue(t *testing.T) {
+	value := "Hello World"
+
+	handler, err := New(
+		JSONResponse(),
+		ByType(ClosableRequestValue(func(r *http.Request, v *string) (func(), error) {
+			*v = value
+			return func() {
+				value = "Goodbye World"
+			}, nil
+		})),
+		Get(func(ctx context.Context, in struct {
+			V string
+		}) (string, error) {
+			return in.V, nil
+		}),
+	)
+
+	if err != nil {
+		t.Errorf("New() error = %v", err)
+		return
+	}
+
+	w := httptest.NewRecorder()
+	handler(w, httptest.NewRequest("GET", "http://example.com", nil))
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+
+	assert.Equal(t, 200, resp.StatusCode)
+	unquoted, err := strconv.Unquote(strings.TrimSpace(string(body)))
+	if err != nil {
+		t.Errorf("strconv.Unquote() error = %v", err)
+		return
+	}
+	assert.Equal(t, "Hello World", unquoted)
+	assert.Equal(t, "Goodbye World", value)
 }

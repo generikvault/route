@@ -74,11 +74,12 @@ func routeHandler[Input, Output any](router *router, node *node, handler func(co
 		}
 		for i, fieldMod := range route.fields {
 			field := inputValue.Field(i)
-
-			if err := fieldMod(&request, field.Addr().Interface()); err != nil {
+			close, err := fieldMod(&request, field.Addr().Interface())
+			if err != nil {
 				router.HandleErr(w, fmt.Errorf("applying input option: %w", err))
 				return
 			}
+			defer close()
 		}
 
 		if r.Method == http.MethodHead {

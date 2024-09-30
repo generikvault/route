@@ -5,13 +5,13 @@ import (
 	"reflect"
 	"strconv"
 
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 // FieldOption configures the behavior to input field.
 type FieldOption[T any] func(route *route, name string, field reflect.Type) (fieldModifier[T], error)
 
-type fieldModifier[T any] func(*request, T) error
+type fieldModifier[T any] func(*request, T) (func(), error)
 
 // Fixed is a field type that can be used to trigger the PathByNameOfFixedTyped Option
 // to add a fixed path segment to the route.
@@ -21,7 +21,7 @@ type Fixed struct{}
 // PathByNameOfFixed returns an Option that adds a fixed path to the route.
 // The Option is triggered by a Fixed field in the input struct.
 func PathByNameOfFixedTyped(convert func(string) string) Option {
-	return ByType[Fixed](PathByName[*Fixed](convert))
+	return ByType(PathByName[*Fixed](convert))
 }
 
 // PathByName returns an FieldOption that adds a path segment based on the fields name to the route.
@@ -30,9 +30,9 @@ func PathByNameOfFixedTyped(convert func(string) string) Option {
 func PathByName[T any](convert func(string) string) FieldOption[T] {
 	return func(route *route, name string, field reflect.Type) (fieldModifier[T], error) {
 		route.addFixedToPath(convert(name))
-		return func(r *request, t T) error {
+		return func(r *request, t T) (func(), error) {
 			r.popPath()
-			return nil
+			return nil, nil
 		}, nil
 	}
 }
@@ -41,9 +41,9 @@ func PathByName[T any](convert func(string) string) FieldOption[T] {
 func Path[T any](s string) FieldOption[T] {
 	return func(route *route, name string, field reflect.Type) (fieldModifier[T], error) {
 		route.addFixedToPath(s)
-		return func(r *request, t T) error {
+		return func(r *request, t T) (func(), error) {
 			r.popPath()
-			return nil
+			return nil, nil
 		}, nil
 	}
 }
@@ -74,8 +74,8 @@ func IntPathIDs() FieldOption[*int] {
 func PathID[T any](f func(id string, v T) error) FieldOption[T] {
 	return func(route *route, name string, field reflect.Type) (fieldModifier[T], error) {
 		route.addVarToPath()
-		return func(r *request, v T) error {
-			return f(r.popPath(), v)
+		return func(r *request, v T) (func(), error) {
+			return nil, f(r.popPath(), v)
 		}, nil
 	}
 }
@@ -83,7 +83,17 @@ func PathID[T any](f func(id string, v T) error) FieldOption[T] {
 // RequestValue returns a FieldOption to modify the field based on the request.
 func RequestValue[T any](f func(r *http.Request, v T) error) FieldOption[T] {
 	return func(route *route, name string, field reflect.Type) (fieldModifier[T], error) {
-		return func(r *request, v T) error {
+		return func(r *request, v T) (func(), error) {
+			return nil, f(r.Request, v)
+		}, nil
+	}
+}
+
+// ClosableRequestValue returns a FieldOption to modify the field based on the request.
+// The returned function is called after the request is handled.
+func ClosableRequestValue[T any](f func(r *http.Request, v T) (func(), error)) FieldOption[T] {
+	return func(route *route, name string, field reflect.Type) (fieldModifier[T], error) {
+		return func(r *request, v T) (func(), error) {
 			return f(r.Request, v)
 		}, nil
 	}
@@ -102,16 +112,37 @@ func ByName(name string, opts ...FieldOption[any]) Option {
 				}
 				mods[i] = mod
 			}
-			return func(r *request, v any) error {
-				for _, mod := range mods {
-					if err := mod(r, v); err != nil {
-						return err
-					}
-				}
-				return nil
-			}, nil
+			return combinedFieldModifier(mods), nil
 		})
 		return nil
+	}
+}
+
+func combinedFieldModifier[T any](mods []fieldModifier[T]) fieldModifier[any] {
+	mods = slices.Clip(mods)
+	return func(r *request, v any) (func(), error) {
+		closers := make([]func(), 0, len(mods))
+		defer func() {
+			for _, closer := range slices.Backward(closers) {
+				closer()
+			}
+		}()
+		for _, mod := range mods {
+			closer, err := mod(r, v.(T))
+			if err != nil {
+				return nil, err
+			}
+			if closer != nil {
+				closers = append(closers, closer)
+			}
+		}
+		delayed := closers
+		closers = nil
+		return func() {
+			for _, closer := range slices.Backward(delayed) {
+				closer()
+			}
+		}, nil
 	}
 }
 
@@ -131,16 +162,7 @@ func ByType[T any](opts ...FieldOption[*T]) Option {
 					mods = append(mods, mod)
 				}
 			}
-			mods = slices.Clip(mods)
-			return func(r *request, v any) error {
-				pointer := v.(*T)
-				for _, mod := range mods {
-					if err := mod(r, pointer); err != nil {
-						return err
-					}
-				}
-				return nil
-			}, nil
+			return combinedFieldModifier(mods), nil
 		})
 		return nil
 	}
