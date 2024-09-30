@@ -104,21 +104,36 @@ func ClosableRequestValue[T any](f func(r *http.Request, v T) (func(), error)) F
 func ByName(name string, opts ...FieldOption[any]) Option {
 	return func(r *router) error {
 		r.addNameRouteOption(name, func(route *route, name string, field reflect.Type) (fieldModifier[any], error) {
-			mods := make([]fieldModifier[any], len(opts))
-			for i, opt := range opts {
-				mod, err := opt(route, name, field)
-				if err != nil {
-					return nil, err
-				}
-				mods[i] = mod
-			}
-			return combinedFieldModifier(mods), nil
+			return combinedFieldModifier(opts, route, name, field)
 		})
 		return nil
 	}
 }
 
-func combinedFieldModifier[T any](mods []fieldModifier[T]) fieldModifier[any] {
+// ByType returns an Option that sets the typed field.
+// For example form the request body, header, path or from URL getter variables.
+// Via the given FieldOptions
+func ByType[T any](opts ...FieldOption[*T]) Option {
+	return func(r *router) error {
+		r.addTypeRouteOption(typeOf[T](), func(route *route, name string, field reflect.Type) (fieldModifier[any], error) {
+			return combinedFieldModifier(opts, route, name, field)
+		})
+		return nil
+	}
+}
+
+func combinedFieldModifier[T any](opts []FieldOption[T], route *route, name string, field reflect.Type) (fieldModifier[any], error) {
+	mods := make([]fieldModifier[T], 0, len(opts))
+	for _, opt := range opts {
+		mod, err := opt(route, name, field)
+		if err != nil {
+			return nil, err
+		}
+		if mod != nil {
+			mods = append(mods, mod)
+		}
+	}
+
 	mods = slices.Clip(mods)
 	return func(r *request, v any) (func(), error) {
 		closers := make([]func(), 0, len(mods))
@@ -143,27 +158,5 @@ func combinedFieldModifier[T any](mods []fieldModifier[T]) fieldModifier[any] {
 				closer()
 			}
 		}, nil
-	}
-}
-
-// ByType returns an Option that sets the typed field.
-// For example form the request body, header, path or from URL getter variables.
-// Via the given FieldOptions
-func ByType[T any](opts ...FieldOption[*T]) Option {
-	return func(r *router) error {
-		r.addTypeRouteOption(typeOf[T](), func(route *route, name string, field reflect.Type) (fieldModifier[any], error) {
-			mods := make([]fieldModifier[*T], 0, len(opts))
-			for _, opt := range opts {
-				mod, err := opt(route, name, field)
-				if err != nil {
-					return nil, err
-				}
-				if mod != nil {
-					mods = append(mods, mod)
-				}
-			}
-			return combinedFieldModifier(mods), nil
-		})
-		return nil
-	}
+	}, nil
 }
