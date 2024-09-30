@@ -59,27 +59,11 @@ func routeHandler[Input, Output any](router *router, node *node, handler func(co
 
 	var httpHandler http.Handler
 	httpHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var input Input
-		inputValue := reflect.ValueOf(&input).Elem()
 		ctx := r.Context()
-
-		path, err := splitPath(r.URL)
+		input, err := createInput[Input](r, route)
 		if err != nil {
-			router.HandleErr(w, err)
+			router.HandleErr(ctx, w, fmt.Errorf("handling request: %w", err))
 			return
-		}
-		request := request{
-			Request:  r,
-			pathTail: path,
-		}
-		for i, fieldMod := range route.fields {
-			field := inputValue.Field(i)
-			close, err := fieldMod(&request, field.Addr().Interface())
-			if err != nil {
-				router.HandleErr(w, fmt.Errorf("applying input option: %w", err))
-				return
-			}
-			defer close()
 		}
 
 		if r.Method == http.MethodHead {
@@ -88,12 +72,12 @@ func routeHandler[Input, Output any](router *router, node *node, handler func(co
 
 		res, err := handler(ctx, input)
 		if err != nil {
-			router.HandleErr(w, err)
+			router.HandleErr(ctx, w, fmt.Errorf("handling request: %w", err))
 			return
 		}
 
-		if err := router.responseEncoder(w, res); err != nil {
-			router.HandleErr(w, fmt.Errorf("encoding response: %w", err))
+		if err := router.responseEncoder(ctx, w, res); err != nil {
+			router.HandleErr(ctx, w, fmt.Errorf("encoding response: %w", err))
 			return
 		}
 	})
@@ -102,6 +86,33 @@ func routeHandler[Input, Output any](router *router, node *node, handler func(co
 	}
 	route.node.handler = httpHandler
 	return nil
+}
+
+func createInput[Input any](r *http.Request, route route) (Input, error) {
+	var input Input
+
+	inputValue := reflect.ValueOf(&input).Elem()
+
+	path, err := splitPath(r.URL)
+	if err != nil {
+		return input, err
+	}
+	request := request{
+		Request:  r,
+		pathTail: path,
+	}
+	for i, fieldMod := range route.fields {
+		field := inputValue.Field(i)
+		close, err := fieldMod(&request, field.Addr().Interface())
+		if err != nil {
+			return input, fmt.Errorf("applying input option: %w", err)
+		}
+		if close != nil {
+			defer close()
+		}
+	}
+
+	return input, nil
 }
 
 func splitPath(link *url.URL) ([]string, error) {

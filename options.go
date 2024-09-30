@@ -1,6 +1,7 @@
 package route
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -23,7 +24,7 @@ func Join(opts ...Option) Option {
 
 // ResponseEncoder returns an Option that sets the response encoder.
 // Different Output types can be handled differently by the given encoder Function.
-func ResponseEncoder(encoder func(http.ResponseWriter, any) error) Option {
+func ResponseEncoder(encoder func(context.Context, http.ResponseWriter, any) error) Option {
 	return func(r *router) error {
 		r.responseEncoder = encoder
 		return nil
@@ -31,7 +32,7 @@ func ResponseEncoder(encoder func(http.ResponseWriter, any) error) Option {
 }
 
 // Body returns an FieldOption that decodes the request body into the field.
-func Body(decoder func(io.Reader, interface{}) error) FieldOption[any] {
+func Body(decoder func(io.Reader, any) error) FieldOption[any] {
 	return RequestValue[any](func(r *http.Request, value any) error {
 		return decoder(r.Body, value)
 	})
@@ -39,7 +40,7 @@ func Body(decoder func(io.Reader, interface{}) error) FieldOption[any] {
 
 // JSONBody returns an FieldOption that decodes the request body as JSON into the field.
 func JSONBody() FieldOption[any] {
-	return Body(func(r io.Reader, i interface{}) error {
+	return Body(func(r io.Reader, i any) error {
 		return json.NewDecoder(r).Decode(i)
 	})
 }
@@ -47,15 +48,15 @@ func JSONBody() FieldOption[any] {
 // JSONResponse returns an Option that encodes the response as JSON.
 func JSONResponse() Option {
 	return func(r *router) error {
-		r.responseEncoder = func(w http.ResponseWriter, i interface{}) error {
-			return json.NewEncoder(w).Encode(i)
+		r.responseEncoder = func(ctx context.Context, w http.ResponseWriter, v any) error {
+			return json.NewEncoder(w).Encode(v)
 		}
 		return nil
 	}
 }
 
 // HandleError returns an Option that sets the error handler.
-func HandleError(handleErr func(w http.ResponseWriter, err error)) Option {
+func HandleError(handleErr func(ctx context.Context, w http.ResponseWriter, err error)) Option {
 	return func(r *router) error {
 		r.handleErr = handleErr
 		return nil

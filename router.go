@@ -1,6 +1,7 @@
 package route
 
 import (
+	"context"
 	"net/http"
 	"reflect"
 )
@@ -14,9 +15,9 @@ type router struct {
 	nameRouteOptions map[string]FieldOption[any]
 	typeRouteOptions map[reflect.Type]FieldOption[any]
 
-	responseEncoder func(http.ResponseWriter, any) error
+	responseEncoder func(context.Context, http.ResponseWriter, any) error
 
-	handleErr func(w http.ResponseWriter, err error)
+	handleErr func(context.Context, http.ResponseWriter, error)
 
 	middleware []func(http.Handler) http.Handler
 }
@@ -38,9 +39,9 @@ func (r *router) Node(method string) node {
 	}
 }
 
-func (r *router) HandleErr(w http.ResponseWriter, err error) {
+func (r *router) HandleErr(ctx context.Context, w http.ResponseWriter, err error) {
 	if r.handleErr != nil {
-		r.handleErr(w, err)
+		r.handleErr(ctx, w, err)
 		return
 	}
 	http.Error(w, err.Error(), http.StatusInternalServerError)
