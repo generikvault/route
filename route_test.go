@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -142,16 +143,16 @@ func TestClosableRequestValue(t *testing.T) {
 
 	handler, err := New(
 		JSONResponse(),
-		ByType(ClosableRequestValue(func(r *http.Request, v *string) (func(), error) {
-			*v = value
-			return func() {
+		ByType(ClosableRequestValue(func(r *http.Request, v **string) (func(error), error) {
+			*v = &value
+			return func(error) {
 				value = "Goodbye World"
 			}, nil
 		})),
 		Get(func(ctx context.Context, in struct {
-			V string
+			V *string
 		}) (string, error) {
-			return in.V, nil
+			return *in.V, nil
 		}),
 	)
 
@@ -174,4 +175,15 @@ func TestClosableRequestValue(t *testing.T) {
 	}
 	assert.Equal(t, "Hello World", unquoted)
 	assert.Equal(t, "Goodbye World", value)
+}
+
+func TestIterDefer(t *testing.T) {
+	var values []int
+	func() {
+		for _, i := range slices.Backward([]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}) {
+			defer func() { values = append(values, i) }()
+		}
+	}()
+	assert.Equal(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, values)
+
 }

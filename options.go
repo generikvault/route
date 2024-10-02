@@ -47,12 +47,9 @@ func JSONBody() FieldOption[any] {
 
 // JSONResponse returns an Option that encodes the response as JSON.
 func JSONResponse() Option {
-	return func(r *router) error {
-		r.responseEncoder = func(ctx context.Context, w http.ResponseWriter, v any) error {
-			return json.NewEncoder(w).Encode(v)
-		}
-		return nil
-	}
+	return ResponseEncoder(func(ctx context.Context, w http.ResponseWriter, v any) error {
+		return json.NewEncoder(w).Encode(v)
+	})
 }
 
 // HandleError returns an Option that sets the error handler.

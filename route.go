@@ -59,25 +59,8 @@ func routeHandler[Input, Output any](router *router, node *node, handler func(co
 
 	var httpHandler http.Handler
 	httpHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		input, err := createInput[Input](r, route)
-		if err != nil {
-			router.HandleErr(ctx, w, fmt.Errorf("handling request: %w", err))
-			return
-		}
-
-		if r.Method == http.MethodHead {
-			return
-		}
-
-		res, err := handler(ctx, input)
-		if err != nil {
-			router.HandleErr(ctx, w, fmt.Errorf("handling request: %w", err))
-			return
-		}
-
-		if err := router.responseEncoder(ctx, w, res); err != nil {
-			router.HandleErr(ctx, w, fmt.Errorf("encoding response: %w", err))
+		if err := handleRoute(r, w, route, handler, router.responseEncoder); err != nil {
+			router.HandleErr(r.Context(), w, fmt.Errorf("handling request: %w", err))
 			return
 		}
 	})
@@ -88,14 +71,20 @@ func routeHandler[Input, Output any](router *router, node *node, handler func(co
 	return nil
 }
 
-func createInput[Input any](r *http.Request, route route) (Input, error) {
+func handleRoute[Input, Output any](r *http.Request, w http.ResponseWriter, route route, handler func(context.Context, Input) (Output, error), responseEncoder func(context.Context, http.ResponseWriter, any) error) (mErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			mErr = fmt.Errorf("panic: %v", r)
+		}
+	}()
+	ctx := r.Context()
 	var input Input
 
 	inputValue := reflect.ValueOf(&input).Elem()
 
 	path, err := splitPath(r.URL)
 	if err != nil {
-		return input, err
+		return err
 	}
 	request := request{
 		Request:  r,
@@ -105,14 +94,27 @@ func createInput[Input any](r *http.Request, route route) (Input, error) {
 		field := inputValue.Field(i)
 		close, err := fieldMod(&request, field.Addr().Interface())
 		if err != nil {
-			return input, fmt.Errorf("applying input option: %w", err)
+			return fmt.Errorf("applying input option: %w", err)
 		}
 		if close != nil {
-			defer close()
+			defer close(mErr)
 		}
 	}
 
-	return input, nil
+	if r.Method == http.MethodHead {
+		return
+	}
+
+	res, err := handler(ctx, input)
+	if err != nil {
+		return fmt.Errorf("handling request: %w", err)
+	}
+
+	if err := responseEncoder(ctx, w, res); err != nil {
+		return fmt.Errorf("encoding response: %w", err)
+	}
+
+	return nil
 }
 
 func splitPath(link *url.URL) ([]string, error) {
