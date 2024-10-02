@@ -143,10 +143,11 @@ func TestClosableRequestValue(t *testing.T) {
 
 	handler, err := New(
 		JSONResponse(),
-		ByType(ClosableRequestValue(func(r *http.Request, v **string) (func(error), error) {
+		ByType(ClosableRequestValue(func(r *http.Request, v **string) (func(error) error, error) {
 			*v = &value
-			return func(error) {
+			return func(error) error {
 				value = "Goodbye World"
+				return nil
 			}, nil
 		})),
 		Get(func(ctx context.Context, in struct {

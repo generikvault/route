@@ -72,11 +72,6 @@ func routeHandler[Input, Output any](router *router, node *node, handler func(co
 }
 
 func handleRoute[Input, Output any](r *http.Request, w http.ResponseWriter, route route, handler func(context.Context, Input) (Output, error), responseEncoder func(context.Context, http.ResponseWriter, any) error) (mErr error) {
-	defer func() {
-		if r := recover(); r != nil {
-			mErr = fmt.Errorf("panic: %v", r)
-		}
-	}()
 	ctx := r.Context()
 	var input Input
 
@@ -97,7 +92,11 @@ func handleRoute[Input, Output any](r *http.Request, w http.ResponseWriter, rout
 			return fmt.Errorf("applying input option: %w", err)
 		}
 		if close != nil {
-			defer close(mErr)
+			defer func() {
+				if err := close(mErr); err != nil && mErr == nil {
+					mErr = err
+				}
+			}()
 		}
 	}
 
