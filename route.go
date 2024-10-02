@@ -75,6 +75,12 @@ func handleRoute[Input, Output any](r *http.Request, w http.ResponseWriter, rout
 	ctx := r.Context()
 	var input Input
 
+	defer func() {
+		if r := recover(); r != nil && mErr == nil {
+			mErr = fmt.Errorf("panic: %v", r)
+		}
+	}()
+
 	inputValue := reflect.ValueOf(&input).Elem()
 
 	path, err := splitPath(r.URL)
@@ -93,6 +99,9 @@ func handleRoute[Input, Output any](r *http.Request, w http.ResponseWriter, rout
 		}
 		if close != nil {
 			defer func() {
+				if r := recover(); r != nil && mErr == nil {
+					mErr = fmt.Errorf("panic: %v", r)
+				}
 				if err := close(mErr); err != nil && mErr == nil {
 					mErr = err
 				}
