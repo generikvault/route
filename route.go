@@ -163,3 +163,13 @@ func Delete[Input, Output any](handler func(context.Context, Input) (Output, err
 		return routeHandler(r, &r.delete, handler)
 	}
 }
+
+func Handle(handler http.Handler) Option {
+	return func(r *router) error {
+		for _, middleware := range r.middleware {
+			handler = middleware(handler)
+		}
+		r.get.handler = handler
+		return nil
+	}
+}
