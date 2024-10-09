@@ -170,6 +170,7 @@ func Handle(handler http.Handler) Option {
 			handler = middleware(handler)
 		}
 		r.get.handler = handler
+		r.get.allowRemainder = true
 		return nil
 	}
 }
