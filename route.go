@@ -60,7 +60,7 @@ func routeHandler[Input, Output any](router *router, node *node, handler func(co
 	var httpHandler http.Handler
 	httpHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := handleRoute(r, w, route, handler, router.responseEncoder); err != nil {
-			router.HandleErr(r.Context(), w, fmt.Errorf("handling request: %w", err))
+			router.HandleErr(r.Context(), w, err)
 			return
 		}
 	})
