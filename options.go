@@ -24,7 +24,7 @@ func Join(opts ...Option) Option {
 
 // ResponseEncoder returns an Option that sets the response encoder.
 // Different Output types can be handled differently by the given encoder Function.
-func ResponseEncoder(encoder func(context.Context, http.ResponseWriter, any) error) Option {
+func ResponseEncoder(encoder func(context.Context, http.ResponseWriter, *http.Request, any) error) Option {
 	return func(r *router) error {
 		r.responseEncoder = encoder
 		return nil
@@ -47,7 +47,7 @@ func JSONBody() FieldOption[any] {
 
 // JSONResponse returns an Option that encodes the response as JSON.
 func JSONResponse() Option {
-	return ResponseEncoder(func(ctx context.Context, w http.ResponseWriter, v any) error {
+	return ResponseEncoder(func(ctx context.Context, w http.ResponseWriter, r *http.Request, v any) error {
 		return json.NewEncoder(w).Encode(v)
 	})
 }

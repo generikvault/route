@@ -15,7 +15,7 @@ type router struct {
 	nameRouteOptions map[string]FieldOption[any]
 	typeRouteOptions map[reflect.Type]FieldOption[any]
 
-	responseEncoder func(context.Context, http.ResponseWriter, any) error
+	responseEncoder func(context.Context, http.ResponseWriter, *http.Request, any) error
 
 	handleErr func(context.Context, http.ResponseWriter, error)
 
