@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"runtime/debug"
 	"strconv"
 
 	"slices"
@@ -140,7 +141,8 @@ func combinedFieldModifier[T any](opts []FieldOption[T], route *route, name stri
 		closers := make([]func(error) error, 0, len(mods))
 		defer func() {
 			if r := recover(); r != nil {
-				err = fmt.Errorf("panic: %v", r)
+				err = fmt.Errorf("recover panic: %v", r)
+				fmt.Println("stacktrace from panic: \n" + string(debug.Stack()))
 			}
 
 			for _, closer := range slices.Backward(closers) {

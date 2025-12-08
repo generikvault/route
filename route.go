@@ -78,7 +78,7 @@ func handleRoute[Input, Output any](r *http.Request, w http.ResponseWriter, rout
 
 	defer func() {
 		if r := recover(); r != nil && mErr == nil {
-			mErr = fmt.Errorf("panic: %v", r)
+			mErr = fmt.Errorf("recover panic: %v", r)
 			fmt.Println("stacktrace from panic: \n" + string(debug.Stack()))
 		}
 	}()
@@ -102,7 +102,7 @@ func handleRoute[Input, Output any](r *http.Request, w http.ResponseWriter, rout
 		if close != nil {
 			defer func() {
 				if r := recover(); r != nil && mErr == nil {
-					mErr = fmt.Errorf("panic: %v", r)
+					mErr = fmt.Errorf("recover panic: %v", r)
 					fmt.Println("stacktrace from panic: \n" + string(debug.Stack()))
 				}
 				if err := close(mErr); err != nil && mErr == nil {
