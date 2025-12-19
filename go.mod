@@ -5,7 +5,6 @@ go 1.23
 require (
 	github.com/ettle/strcase v0.2.0
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0
 )
 
 require (

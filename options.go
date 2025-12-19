@@ -33,7 +33,7 @@ func ResponseEncoder(encoder func(context.Context, http.ResponseWriter, *http.Re
 
 // Body returns an FieldOption that decodes the request body into the field.
 func Body(decoder func(io.Reader, any) error) FieldOption[any] {
-	return RequestValue[any](func(r *http.Request, value any) error {
+	return RequestValue(func(r *http.Request, value any) error {
 		return decoder(r.Body, value)
 	})
 }
