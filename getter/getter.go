@@ -9,9 +9,11 @@ import (
 	"github.com/ettle/strcase"
 )
 
-// IntoStructTyped returns a function that sets the fields of the given struct type to the URL values of the request via reflection.
+// IntoStructTyped builds a binder that maps URL query values into a struct.
+//
+// The input type must be a pointer to a struct.
 func IntoStructTyped(t reflect.Type) (func(r *http.Request, v any) error, error) {
-	if t.Kind() != reflect.Ptr {
+	if t.Kind() != reflect.Pointer {
 		return nil, fmt.Errorf("expected pointer, got %v", t)
 	}
 	t = t.Elem()
@@ -69,7 +71,7 @@ func fieldSetter(field reflect.StructField) (func(r *http.Request) (reflect.Valu
 	}, nil
 }
 
-// IntoStruct uses reflection to set the fields of the given struct to the URL values of the request.
+// IntoStruct maps URL query values into the provided struct pointer.
 func IntoStruct(r *http.Request, v any) error {
 	parse, err := IntoStructTyped(reflect.TypeOf(v))
 	if err != nil {

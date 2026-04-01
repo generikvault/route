@@ -10,6 +10,11 @@ import (
 	"strings"
 )
 
+// New builds an HTTP handler from the given route options.
+//
+// A typical configuration combines one or more method handlers such as Get or
+// Post with field bindings such as ByType or ByName and a response encoder such
+// as JSONResponse.
 func New(opts ...Option) (http.HandlerFunc, error) {
 	router := router{}
 	for _, opt := range opts {
@@ -143,30 +148,35 @@ func splitPath(link *url.URL) ([]string, error) {
 	return path, nil
 }
 
+// Post registers a POST handler.
 func Post[Input, Output any](handler func(context.Context, Input) (Output, error)) Option {
 	return func(r *router) error {
 		return routeHandler(r, &r.post, handler)
 	}
 }
 
+// Put registers a PUT handler.
 func Put[Input, Output any](handler func(context.Context, Input) (Output, error)) Option {
 	return func(r *router) error {
 		return routeHandler(r, &r.put, handler)
 	}
 }
 
+// Get registers a GET handler.
 func Get[Input, Output any](handler func(context.Context, Input) (Output, error)) Option {
 	return func(r *router) error {
 		return routeHandler(r, &r.get, handler)
 	}
 }
 
+// Delete registers a DELETE handler.
 func Delete[Input, Output any](handler func(context.Context, Input) (Output, error)) Option {
 	return func(r *router) error {
 		return routeHandler(r, &r.delete, handler)
 	}
 }
 
+// Handle registers a plain HTTP handler for GET requests.
 func Handle(handler http.Handler) Option {
 	return func(r *router) error {
 		for _, middleware := range r.middleware {

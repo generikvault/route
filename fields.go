@@ -10,25 +10,26 @@ import (
 	"slices"
 )
 
-// FieldOption configures the behavior to input field.
+// FieldOption configures how an input field is bound for a route.
 type FieldOption[T any] func(route *route, name string, field reflect.Type) (fieldModifier[T], error)
 
 type fieldModifier[T any] func(*request, T) (func(error) error, error)
 
-// Fixed is a field type that can be used to trigger the PathByNameOfFixedTyped Option
-// to add a fixed path segment to the route.
-// The Option must be specified explicitly.
+// Fixed marks an input field that contributes a fixed path segment.
+//
+// Use it together with PathByNameOfFixedTyped.
 type Fixed struct{}
 
-// PathByNameOfFixed returns an Option that adds a fixed path to the route.
-// The Option is triggered by a Fixed field in the input struct.
+// PathByNameOfFixedTyped binds Fixed fields as fixed path segments.
+//
+// The convert function maps field names to path segments.
 func PathByNameOfFixedTyped(convert func(string) string) Option {
 	return ByType(PathByName[*Fixed](convert))
 }
 
-// PathByName returns an FieldOption that adds a path segment based on the fields name to the route.
-// The convert function is used to convert the field name to the path segment.
-// For example to convert the path name to kebab case or append an s or just strings.ToLower.
+// PathByName binds a field as a fixed path segment based on its field name.
+//
+// The convert function maps the field name to a path segment.
 func PathByName[T any](convert func(string) string) FieldOption[T] {
 	return func(route *route, name string, field reflect.Type) (fieldModifier[T], error) {
 		route.addFixedToPath(convert(name))
@@ -39,7 +40,7 @@ func PathByName[T any](convert func(string) string) FieldOption[T] {
 	}
 }
 
-// Path returns an FieldOption that adds given path segment to the route.
+// Path binds a field as the given fixed path segment.
 func Path[T any](s string) FieldOption[T] {
 	return func(route *route, name string, field reflect.Type) (fieldModifier[T], error) {
 		route.addFixedToPath(s)
@@ -50,8 +51,9 @@ func Path[T any](s string) FieldOption[T] {
 	}
 }
 
-// StringPathIDs returns an FieldOption that enables the route to route string IDs.
-// Call it with ByType(StringPathIDs()). Feel free to add surrounding FieldOptions.
+// StringPathIDs binds string fields from variable path segments.
+//
+// Use it with ByType(StringPathIDs()).
 func StringPathIDs() FieldOption[*string] {
 	return PathID(func(id string, v *string) error {
 		*v = id
@@ -59,8 +61,9 @@ func StringPathIDs() FieldOption[*string] {
 	})
 }
 
-// IntPathIDs returns an FieldOption that enables the route to route int IDs.
-// Call it with ByType(IntPathIDs()). Feel free to add surrounding FieldOptions.
+// IntPathIDs binds int fields from variable path segments.
+//
+// Use it with ByType(IntPathIDs()).
 func IntPathIDs() FieldOption[*int] {
 	return PathID(func(id string, v *int) error {
 		i, err := strconv.Atoi(id)
@@ -72,7 +75,7 @@ func IntPathIDs() FieldOption[*int] {
 	})
 }
 
-// PathID returns an FieldOption that adds an id to the path.
+// PathID binds a field from one variable path segment.
 func PathID[T any](f func(id string, v T) error) FieldOption[T] {
 	return func(route *route, name string, field reflect.Type) (fieldModifier[T], error) {
 		route.addVarToPath()
@@ -82,7 +85,7 @@ func PathID[T any](f func(id string, v T) error) FieldOption[T] {
 	}
 }
 
-// RequestValue returns a FieldOption to modify the field based on the request.
+// RequestValue binds a field from the current HTTP request.
 func RequestValue[T any](f func(r *http.Request, v T) error) FieldOption[T] {
 	return func(route *route, name string, field reflect.Type) (fieldModifier[T], error) {
 		return func(r *request, v T) (func(error) error, error) {
@@ -91,8 +94,9 @@ func RequestValue[T any](f func(r *http.Request, v T) error) FieldOption[T] {
 	}
 }
 
-// ClosableRequestValue returns a FieldOption to modify the field based on the request.
-// The returned function is called after the request is handled.
+// ClosableRequestValue binds a field from the request and returns an optional closer.
+//
+// The closer runs after request handling and receives the current error state.
 func ClosableRequestValue[T any](f func(r *http.Request, v T) (func(error) error, error)) FieldOption[T] {
 	return func(route *route, name string, field reflect.Type) (fieldModifier[T], error) {
 		return func(r *request, v T) (func(error) error, error) {
@@ -101,8 +105,7 @@ func ClosableRequestValue[T any](f func(r *http.Request, v T) (func(error) error
 	}
 }
 
-// ByName returns an Option that sets the named field.
-// For example form the request body or header or from URL getter variables.
+// ByName binds a specific input field name using the given field options.
 func ByName(name string, opts ...FieldOption[any]) Option {
 	return func(r *router) error {
 		r.addNameRouteOption(name, func(route *route, name string, field reflect.Type) (fieldModifier[any], error) {
@@ -112,9 +115,7 @@ func ByName(name string, opts ...FieldOption[any]) Option {
 	}
 }
 
-// ByType returns an Option that sets the typed field.
-// For example form the request body, header, path or from URL getter variables.
-// Via the given FieldOptions
+// ByType binds fields of type T using the given field options.
 func ByType[T any](opts ...FieldOption[*T]) Option {
 	return func(r *router) error {
 		r.addTypeRouteOption(typeOf[T](), func(route *route, name string, field reflect.Type) (fieldModifier[any], error) {

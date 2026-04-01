@@ -7,10 +7,10 @@ import (
 	"net/http"
 )
 
-// Option is a function that sets a router option.
+// Option configures router behavior.
 type Option func(*router) error
 
-// Join returns an Option that joins multiple options.
+// Join combines multiple options into one option.
 func Join(opts ...Option) Option {
 	return func(r *router) error {
 		for _, opt := range opts {
@@ -22,8 +22,9 @@ func Join(opts ...Option) Option {
 	}
 }
 
-// ResponseEncoder returns an Option that sets the response encoder.
-// Different Output types can be handled differently by the given encoder Function.
+// ResponseEncoder sets the encoder used for handler outputs.
+//
+// The encoder can switch behavior based on the concrete output value.
 func ResponseEncoder(encoder func(context.Context, http.ResponseWriter, *http.Request, any) error) Option {
 	return func(r *router) error {
 		r.responseEncoder = encoder
@@ -31,28 +32,28 @@ func ResponseEncoder(encoder func(context.Context, http.ResponseWriter, *http.Re
 	}
 }
 
-// Body returns an FieldOption that decodes the request body into the field.
+// Body binds a field from the request body using the provided decoder.
 func Body(decoder func(io.Reader, any) error) FieldOption[any] {
 	return RequestValue(func(r *http.Request, value any) error {
 		return decoder(r.Body, value)
 	})
 }
 
-// JSONBody returns an FieldOption that decodes the request body as JSON into the field.
+// JSONBody binds a field from a JSON request body.
 func JSONBody() FieldOption[any] {
 	return Body(func(r io.Reader, i any) error {
 		return json.NewDecoder(r).Decode(i)
 	})
 }
 
-// JSONResponse returns an Option that encodes the response as JSON.
+// JSONResponse encodes handler output as JSON.
 func JSONResponse() Option {
 	return ResponseEncoder(func(ctx context.Context, w http.ResponseWriter, r *http.Request, v any) error {
 		return json.NewEncoder(w).Encode(v)
 	})
 }
 
-// HandleError returns an Option that sets the error handler.
+// HandleError sets the error handler for route and binding failures.
 func HandleError(handleErr func(ctx context.Context, w http.ResponseWriter, err error)) Option {
 	return func(r *router) error {
 		r.handleErr = handleErr
@@ -60,7 +61,7 @@ func HandleError(handleErr func(ctx context.Context, w http.ResponseWriter, err 
 	}
 }
 
-// Middleware returns an Option that adds given middleware.
+// Middleware appends middleware to all registered handlers.
 func Middleware(middleware ...func(http.Handler) http.Handler) Option {
 	return func(r *router) error {
 		r.middleware = append(r.middleware, middleware...)
