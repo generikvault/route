@@ -125,6 +125,33 @@ func ByType[T any](opts ...FieldOption[*T]) Option {
 	}
 }
 
+// ByNameAndType binds fields of type T and a specific name using the given field options.
+func ByNameAndType[T any](name string, opts ...FieldOption[*T]) Option {
+	return func(r *router) error {
+		r.addNameAndTypeRouteOption(name, typeOf[T](), func(route *route, name string, field reflect.Type) (fieldModifier[any], error) {
+			return combinedFieldModifier(opts, route, name, field)
+		})
+		return nil
+	}
+}
+
+// RemainingPath binds a field to the remainder of the path.
+func RemainingPath() FieldOption[*[]string] {
+	return func(route *route, name string, field reflect.Type) (fieldModifier[*[]string], error) {
+		route.node.allowRemainder = true // TODO followup options verbieten
+		return func(r *request, t *[]string) (func(error) error, error) {
+			*t = r.pathTail
+			r.pathTail = nil
+			return nil, nil
+		}, nil
+	}
+}
+
+type nameRouteOptions struct {
+	option           FieldOption[any]
+	typeRouteOptions map[reflect.Type]FieldOption[any]
+}
+
 func combinedFieldModifier[T any](opts []FieldOption[T], route *route, name string, field reflect.Type) (fieldModifier[any], error) {
 	mods := make([]fieldModifier[T], 0, len(opts))
 	for _, opt := range opts {

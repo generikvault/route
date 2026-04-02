@@ -83,6 +83,22 @@ func TestNew(t *testing.T) {
 			requestCode: http.StatusOK,
 		},
 		{
+			name: "RemainingPath",
+			opt: testOptions(
+				ByNameAndType("Rest", RemainingPath()),
+				Get(func(ctx context.Context, in struct {
+					IntID int
+					Stuff Fixed
+					Rest  []string
+				}) ([]string, error) {
+					return in.Rest, nil
+				}),
+			),
+			req:         httptest.NewRequest("GET", "http://example.com/42/stuff/foo/bar/baz", nil),
+			body:        `["foo","bar","baz"]`,
+			requestCode: http.StatusOK,
+		},
+		{
 			name: "private-fields",
 			opt: testOptions(
 				Get(func(ctx context.Context, in struct {

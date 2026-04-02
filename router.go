@@ -12,7 +12,7 @@ type router struct {
 	put    node
 	delete node
 
-	nameRouteOptions map[string]FieldOption[any]
+	nameRouteOptions map[string]nameRouteOptions
 	typeRouteOptions map[reflect.Type]FieldOption[any]
 
 	responseEncoder func(context.Context, http.ResponseWriter, *http.Request, any) error
@@ -56,14 +56,33 @@ func (r *router) addTypeRouteOption(t reflect.Type, option FieldOption[any]) {
 
 func (r *router) addNameRouteOption(name string, option FieldOption[any]) {
 	if r.nameRouteOptions == nil {
-		r.nameRouteOptions = make(map[string]FieldOption[any])
+		r.nameRouteOptions = make(map[string]nameRouteOptions)
 	}
-	r.nameRouteOptions[name] = option
+	named := r.nameRouteOptions[name]
+	named.option = option
+	r.nameRouteOptions[name] = named
+}
+
+func (r *router) addNameAndTypeRouteOption(name string, t reflect.Type, option FieldOption[any]) {
+	if r.nameRouteOptions == nil {
+		r.nameRouteOptions = make(map[string]nameRouteOptions)
+	}
+	named := r.nameRouteOptions[name]
+	if named.typeRouteOptions == nil {
+		named.typeRouteOptions = make(map[reflect.Type]FieldOption[any])
+	}
+	named.typeRouteOptions[t] = option
+	r.nameRouteOptions[name] = named
 }
 
 func (r *router) routeOption(field reflect.StructField) (FieldOption[any], bool) {
 	if named, ok := r.nameRouteOptions[field.Name]; ok {
-		return named, true
+		if typed, ok := named.typeRouteOptions[field.Type]; ok {
+			return typed, true
+		}
+		if named.option != nil {
+			return named.option, true
+		}
 	}
 
 	if typed, ok := r.typeRouteOptions[field.Type]; ok {
